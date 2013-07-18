@@ -53,7 +53,7 @@ cd reactor
 <p>Snapshot Maven artifacts are provided in the SpringSource snapshot repositories. To add this repo to your Gradle build, specify the URL like the following:</p>
 
 <pre><code>ext {
-  reactorVersion = '1.0.0.BUILD-SNAPSHOT'
+  reactorVersion = '1.0.0.M1'
 }
 
 repositories {
@@ -65,11 +65,11 @@ repositories {
 
 dependencies {
   // Reactor Core
-  compile 'reactor:reactor-core:$reactorVersion'
+  compile 'org.projectreactor:reactor-core:$reactorVersion'
   // Reactor Groovy
-  compile 'reactor:reactor-groovy:$reactorVersion'
+  compile 'org.projectreactor:reactor-groovy:$reactorVersion'
   // Reactor Spring
-  compile 'reactor:reactor-spring:$reactorVersion'
+  compile 'org.projectreactor:reactor-spring:$reactorVersion'
 }
 </code></pre>
 
@@ -78,108 +78,11 @@ dependencies {
 <h3>Community / Support</h3>
 
 <ul>
+<li><a href="https://github.com/reactor/reactor/wiki">Documentation</a></li>
 <li><a href="https://groups.google.com/forum/?#!forum/reactor-framework">reactor-framework Google Group</a></li>
 <li><a href="https://github.com/reactor/reactor/issues">GitHub Issues</a></li>
 <li><a>IRC Channel</a></li>
-</ul><h3>Introduction</h3>
-
-<p><code>Reactor</code>, as the name suggests, is heavily influenced by the well-known <a href="http://en.wikipedia.org/wiki/Reactor_pattern">Reactor design pattern</a>. But it is also influenced by other event-driven design practices, as well as several awesome JVM-based solutions that have been developed over the years. Reactor's goal is to condense these ideas and patterns into a simple and reusable foundation for making event-driven programming much easier.</p>
-
-<p>Reactor is also designed to be friendly to <a href="http://www.jcp.org/en/jsr/detail?id=335">Java 8 lambdas</a>. Many components within Reactor can be drop-in replaced with lambdas or method references to make your Java code more succinct. We've also found that using Java 8 lambdas and method references results in slightly higher throughput. But even if you can't use Java 8 yet, Reactor will work fine in Java 6 and 7 (you'll just have to implement more anonymous inner classes).</p>
-
-<h3>Events, Selectors and Consumers</h3>
-
-<p>Three of the most foundational components in Reactor’s <code>reactor-core</code> module are the <code>Selector</code>, the <code>Consumer</code>, and the <code>Event</code>. A <code>Consumer</code> can be assigned to a <code>Reactor</code> by using a <code>Selector</code>, which is a simple abstraction to provide flexibility when finding the <code>Consumer</code>s to invoke for an <code>Event</code>. A range of default selectors are available. From plain <code>String</code>s to regular expressions to Spring MVC-style URL templates.</p>
-
-<h5>Selector Matching</h5>
-
-<p>There are different kinds of <code>Selector</code>s for doing different kinds of matching. The simplest form is just to match one object with another. For example, a <code>Selector</code> created from a <code>String</code> "parse" will match another <code>Selector</code> whose wrapped object is also a <code>String</code> "parse" (in this case it's just like a <code>String.equals(String)</code>.</p>
-
-<p>But a <code>Selector</code> can also match another <code>Selector</code> based on <code>Class.isAssignableFrom(Class&lt;?&gt;)</code>, regular expressions, URL templates, or the like. There are helper methods on the <code>Fn</code> abstract class to make creating these <code>Selector</code>s very easy in user code.</p>
-
-<p>Here's is an example of wiring a <code>Consumer</code> to a <code>Selector</code> on a <code>Reactor</code>:</p>
-
-<pre><code>// This helper method is like jQuery’s.
-// It creates a Selector instance so you don’t have
-// to do new Selector("parse”)
-import static reactor.Fn.$;
-
-Selector parse = $("parse”);
-Reactor reactor = new Reactor();
-
-// Wire an event to handle the data sent with the Event
-reactor.on(parse, new Consumer&lt;Event&lt;String&gt;&gt;() {
-  public void accept(Event&lt;String&gt; ev) {
-    service.handleEvent(ev);
-  }
-});
-
-// Send an event to this Reactor and trigger all actions
-// that match the given key
-reactor.notify("parse", Fn.event(incomingJsonData));
-</code></pre>
-
-<p>In Java 8, the event wiring would become extremely succinct:</p>
-
-<pre><code>// Use a POJO as an event handler
-class Service {
-  public &lt;T&gt; void handleEvent(Event&lt;T&gt; ev) {
-    // handle the event data
-  }
-}
-
-@Inject
-Service service;
-
-// Use a method reference to create a Consumer&lt;Event&lt;T&gt;&gt;
-reactor.on($("parse"), service::handleEvent);
-
-// Notify consumers of the 'parse' topic that data is ready
-// by passing a Supplier&lt;Event&lt;T&gt;&gt; in the form of a lambda
-reactor.notify("parse", () -&gt; {
-  slurpNextEvent()
-});
-</code></pre>
-
-<h5>Headers</h5>
-
-<p>Events have optional associated metadata in the <code>headers</code> property. Events are meant to be stateless helpers that provide a consumer with an argument value and related metadata. If you need to communicate information to consumer components, like the IDs of other Reactors that have an interest in the outcome of the work done on this <code>Event</code>, then set that information in a header value.</p>
-
-<pre><code>// Just use the default selector instead of a specific one
-r.on(new Consumer&lt;Event&lt;String&gt;&gt;() {
-    public void accept(Event&lt;String&gt; ev) {
-      String otherData = ev.getHeaders().get("x-custom-header");
-      // do something with this other data
-    }
-});
-
-Event&lt;String&gt; ev = Fn.event("Hello World!");
-ev.getHeaders().set("x-custom-header", "ID_TO_ANOTHER_REACTOR");
-r.notify(ev);
-</code></pre>
-
-<h3>Registrations</h3>
-
-<p>When assigning an <code>Consumer</code> to a <code>Reactor</code>, a <code>Registration</code> is provided to the caller to manage that assignment. <code>Registration</code>s can be cancelled, which removes them from the <code>Reactor</code> or, if you don't want to remove an consumer entirely but just want to pause its execution for a time, you can accept <code>pause()</code> and later <code>resume()</code> which will cause the <code>Dispatcher</code> to skip over that <code>Consumer</code> when finding <code>Consumer</code>s that match a given <code>Selector</code>.</p>
-
-<pre><code>Registration reg = r.on($("test"), new Consumer&lt;Event&lt;?&gt;&gt;() { … });
-
-// pause this consumer so it's not executed for a time
-reg.pause();
-
-// later decide to resume it
-reg.resume();
-</code></pre>
-
-<h3>Complete Extensibility</h3>
-
-<p>Reactor really just provides a foundation upon which you can build a very powerful event-driven framework to power your own apps. If the default <code>Selector</code> implementations don't take into account your own domain-specific information, you can simply implement your own <code>Selector</code> that does whatever checks are required. It would be quite easy to add security to an application by creating a user-aware <code>Selector</code> that would fail to match an consumer if the user wasn't authorized.</p>
-
-<p>Beyond implementing a <code>Selector</code>, there is also a <code>SelectionStrategy</code> interface that can be provided to a <code>Reactor</code> which will be used to match <code>Selector</code>s rather than by using the <code>matches()</code> methods on the <code>Selector</code> itself. One could implement consistent hashing of consumers by implementing a <code>ConsistentHashingSelectionStrategy</code>.</p>
-
-<h3>Load-balancing</h3>
-
-<p>Reactor includes two kinds of built-in load-balancing for assigned consumers: ROUND_ROBIN and RANDOM. This means that, of the given <code>Consumer</code>s assigned to the same <code>Selector</code>, the <code>LoadBalancingStrategy</code> is checked to determine whether to execute all consumers, one of them randomly selected, or in a round robin fashion. The default is <code>NONE</code>, which means execute all assigned consumers.</p>
+</ul>
 
 <hr><p>Reactor is <a href="http://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0 licensed</a>.</p>
       </section>
