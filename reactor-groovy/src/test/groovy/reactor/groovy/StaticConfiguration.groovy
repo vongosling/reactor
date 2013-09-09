@@ -18,7 +18,12 @@ package reactor.groovy
 import groovy.transform.CompileStatic
 import reactor.core.configuration.DispatcherType
 import reactor.event.dispatch.SynchronousDispatcher
+import reactor.function.Consumer
+import reactor.function.Function
+import reactor.function.Predicate
 import reactor.groovy.config.GroovyEnvironment
+import reactor.event.Event
+import static reactor.event.selector.Selectors.*
 
 @CompileStatic
 class StaticConfiguration {
@@ -39,10 +44,14 @@ class StaticConfiguration {
 		GroovyEnvironment.create {
 			reactor('test1') {
 				on('test') {
-					println it
 				}
 
-				reactor('child_test1'){}
+				reactor('child_test1') {
+					ext 'a', 'rw'
+				}
+			}
+			reactor('test2') {
+				ext 'a', '2'
 			}
 		}
 	}
@@ -61,14 +70,15 @@ class StaticConfiguration {
 
 	static GroovyEnvironment test4() {
 		def parentEnvironment = GroovyEnvironment.create {
-			environment{
+			environment {
 				defaultDispatcher = 'testDispatcher'
 
 				dispatcher 'testDispatcher', new SynchronousDispatcher()
 			}
 
-			reactor('test1'){
+			reactor('test1') {
 				dispatcher 'testDispatcher'
+				routingStrategy 'random'
 				on('test') {
 					reply it
 				}
@@ -78,13 +88,58 @@ class StaticConfiguration {
 		GroovyEnvironment.create {
 			include parentEnvironment
 
-			reactor('test1'){
+			reactor('test1') {
 				on('test2') {
 					reply it
 				}
 			}
-			reactor('test2'){
+			reactor('test2') {
 				dispatcher 'testDispatcher'
+			}
+		}
+	}
+
+	static GroovyEnvironment test5() {
+		GroovyEnvironment.create {
+			environment {
+				defaultDispatcher = 'testDispatcher'
+				dispatcher 'testDispatcher', new SynchronousDispatcher()
+			}
+
+			reactor('test1') {
+				stream{
+					map({ Event<?> ev->
+						ev.copy(ev.data.toString().startsWith('intercepted') ? ev.data : 'intercepted')
+					} as Function)
+				}
+				stream(object('test')){
+					map({ Event<?> ev->
+						ev.copy("$ev.data twice")
+					} as Function)
+				}
+				on('test') {
+					reply it
+				}
+				on('test2') {
+					reply it
+				}
+
+			}
+
+			reactor('test2') {
+				stream('test'){
+					filter({ Event<?> ev->
+						false
+					} as Predicate)
+				}
+				on('test') {
+					reply it
+					throw new Exception('never')
+				}
+				on('test2') {
+					reply it
+				}
+
 			}
 		}
 	}
