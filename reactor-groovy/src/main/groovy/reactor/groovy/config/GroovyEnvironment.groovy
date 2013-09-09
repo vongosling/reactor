@@ -64,28 +64,38 @@ class GroovyEnvironment {
 
 	GroovyEnvironment include(GroovyEnvironment... groovyEnvironments) {
 		ReactorBuilder reactorBuilder
+		ReactorBuilder current
 		String key
 
 		for (groovyEnvironment in groovyEnvironments) {
-			for (reactorEntry in groovyEnvironment.reactors) {
-				reactorBuilder = ((Map.Entry<String, ReactorBuilder>) reactorEntry).value
-				key = ((Map.Entry<String, Reactor>) reactorEntry).key
-
-				if (reactors.containsKey(key)) {
-					reactorBuilder.copyConsumersFrom reactors[key]
-				} else {
-					reactors[key] = reactorBuilder
-				}
-			}
 
 			if (reactorEnvironment) {
-				for (dispatcherEntry in groovyEnvironment.reactorEnvironment) {
-					for (dispatcher in dispatcherEntry.value) {
-						reactorEnvironment.addDispatcher(dispatcherEntry.key, dispatcher)
+				if (groovyEnvironment.reactorEnvironment) {
+					for (dispatcherEntry in groovyEnvironment.reactorEnvironment) {
+						for (dispatcher in dispatcherEntry.value) {
+							reactorEnvironment.addDispatcher(dispatcherEntry.key, dispatcher)
+						}
 					}
 				}
 			} else {
 				reactorEnvironment = groovyEnvironment.reactorEnvironment
+			}
+
+			for (reactorEntry in groovyEnvironment.reactors) {
+				reactorBuilder = ((Map.Entry<String, ReactorBuilder>) reactorEntry).value
+				key = ((Map.Entry<String, Reactor>) reactorEntry).key
+
+				current = reactors[key]
+				if (current) {
+					reactorBuilder.rehydrate current
+					reactorBuilder.addConsumersFrom current
+					if(current.linked && reactors[current.linked.name]){
+						 current.linked = reactors[current.linked.name]
+					}
+					reactorBuilder.linked = current.linked ?: reactorBuilder.linked
+				} else {
+					reactors[key] = reactorBuilder
+				}
 			}
 
 		}
@@ -129,6 +139,18 @@ class GroovyEnvironment {
 
 	Reactor reactor(String reactorName, Reactor reactor) {
 		putAt reactorName, reactor
+	}
+
+	Collection<ReactorBuilder> reactorBuildersByExtension(String extensionKey) {
+		reactors.findAll { String k, ReactorBuilder v -> v.ext(extensionKey) }.values()
+	}
+
+	ReactorBuilder reactorBuilder(String reactor) {
+		reactors[reactor]
+	}
+
+	ReactorBuilder reactorBuilder(String reactorName, ReactorBuilder reactor) {
+		reactors[reactorName] = reactor
 	}
 
 	/**

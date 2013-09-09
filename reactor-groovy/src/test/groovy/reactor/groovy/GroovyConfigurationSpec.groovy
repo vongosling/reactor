@@ -15,13 +15,17 @@
  */
 package reactor.groovy
 
+import reactor.event.Event
 import reactor.core.Environment
 import reactor.event.dispatch.SynchronousDispatcher
 import reactor.groovy.config.GroovyEnvironment
+import reactor.groovy.support.ClosureEventConsumer
 import spock.lang.Specification
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+
+import static reactor.event.selector.Selectors.$
 /**
  * @author Stephane Maldini (smaldini)
  */
@@ -77,4 +81,49 @@ class GroovyConfigurationSpec extends Specification {
 			groovySystem['test2'].dispatcher == groovySystem.dispatcher('testDispatcher')
 			res
 	}
+
+	def "GroovyEnvironment filters per extension"() {
+		when:
+			"Building a simple dispatcher"
+			GroovyEnvironment groovySystem = StaticConfiguration.test2()
+
+		then:
+			groovySystem.reactorBuildersByExtension('a').size() == 2
+	}
+
+	def "GroovyEnvironment intercept with Stream properly"() {
+		when:
+			"Building a simple dispatcher"
+			GroovyEnvironment groovySystem = StaticConfiguration.test5()
+			def res = null
+			def replyTo = $().t1
+			def consumer = new ClosureEventConsumer({ res = it })
+			groovySystem['test1'].on replyTo, consumer
+			groovySystem['test1'].send 'test', Event.wrap('test').setReplyTo(replyTo.object)
+		then:
+			groovySystem['test1'].dispatcher instanceof SynchronousDispatcher
+			res == 'intercepted twice'
+		when:
+			res = null
+			replyTo = $().t1
+			groovySystem['test1'].on replyTo, consumer
+			groovySystem['test1'].send 'test2', Event.wrap('test').setReplyTo(replyTo.object)
+		then:
+			res == 'intercepted'
+		when:
+			res = null
+			replyTo = $().t1
+			groovySystem['test2'].on replyTo, consumer
+			groovySystem['test2'].send 'test', Event.wrap('test').setReplyTo(replyTo.object)
+		then:
+			res == null
+		when:
+			res = null
+			replyTo = $().t1
+			groovySystem['test2'].on replyTo, consumer
+			groovySystem['test2'].send 'test2', Event.wrap('test').setReplyTo(replyTo.object)
+		then:
+			res == 'test'
+	}
+
 }

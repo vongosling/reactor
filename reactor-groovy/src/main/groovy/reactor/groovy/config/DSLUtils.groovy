@@ -18,7 +18,7 @@ class DSLUtils {
 	 * @param closure
 	 * @return possible closure result
 	 */
-	static delegateFirstAndRun(builder, Closure closure){
+	static <T> T delegateFirstAndRun(builder, Closure<T> closure){
 		closure.delegate = builder
 		closure.resolveStrategy = DELEGATE_FIRST
 		closure()

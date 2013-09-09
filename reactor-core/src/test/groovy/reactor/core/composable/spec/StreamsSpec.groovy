@@ -22,7 +22,6 @@ import reactor.core.composable.Stream
 import reactor.function.Function
 import reactor.core.Observable
 import reactor.tuple.Tuple2
-import spock.lang.Ignore
 import spock.lang.Specification
 
 import java.util.concurrent.CountDownLatch
@@ -317,6 +316,17 @@ class StreamsSpec extends Specification {
     then:
       'it is blocked by the filter'
       value.get() == 2
+
+    when:
+      'add a rejected stream'
+	    Deferred rejectedSource = Streams.<Integer>defer().get()
+	    def rejectedTap = rejectedSource.compose().tap()
+	    filtered.filter(predicate { false }, rejectedSource.compose())
+	    source.accept(2)
+
+    then:
+      'it is rejected by the filter'
+	    rejectedTap.get() == 2
   }
 
   def "When a mapping function throws an exception, the mapped composable accepts the error"() {
